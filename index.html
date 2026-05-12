@@ -65,6 +65,9 @@
     padding: 10px 0; color: var(--ant-muted); font-size: 14px;
     cursor: default;
   }
+  .rail li.clickable { cursor: pointer; }
+  .rail li.clickable:hover { color: var(--ant-accent); }
+  .rail li.clickable:hover .dot { border-color: var(--ant-accent); }
   .rail li .dot {
     width: 22px; height: 22px; border-radius: 50%;
     border: 2px solid var(--ant-line); background: var(--ant-bg);
@@ -239,6 +242,7 @@
 /* ---------------- state ---------------- */
 const state = {
   step: 0,
+  maxStep: 0,               // furthest step reached — rail is clickable up to here
   residency: null,          // 'au' | 'any'
   clouds: new Set(),        // 'aws' 'gcp' 'azure'
   direct: null,             // 'yes' | 'no'
@@ -285,11 +289,14 @@ function renderRail() {
   railEl.innerHTML = '';
   STEPS.forEach((s, i) => {
     const li = document.createElement('li');
-    let cls = '';
-    if (i === state.step) cls = 'active';
-    else if (i < state.step) cls = 'done';
-    li.className = cls;
-    li.innerHTML = `<span class="dot">${i < state.step ? '✓' : i+1}</span><span>${s.label}</span>`;
+    const done = i < state.step;
+    const clickable = i <= state.maxStep && i !== state.step;
+    li.className = [
+      i === state.step ? 'active' : done ? 'done' : '',
+      clickable ? 'clickable' : '',
+    ].join(' ').trim();
+    li.innerHTML = `<span class="dot">${done ? '✓' : i+1}</span><span>${s.label}</span>`;
+    if (clickable) li.addEventListener('click', () => { state.step = i; render(); });
     railEl.appendChild(li);
   });
 }
@@ -586,6 +593,10 @@ function bind(root) {
         if (state.addonsNone) state.addons.clear();
       } else {
         state[el.dataset.field] = el.dataset.value;
+        if (el.dataset.field === 'residency' && el.dataset.value === 'au') {
+          state.products.delete('chat'); state.addons.clear();
+          if (state.maxStep > RESIDENCY_STEP) state.addonsNone = state.addonsNone || true;
+        }
       }
       render();
     }));
@@ -604,10 +615,11 @@ function bind(root) {
           state.products.delete('chat'); state.addons.clear();
         }
         state.step++;
+        state.maxStep = Math.max(state.maxStep, state.step);
       }
       if (a === 'back') state.step--;
       if (a === 'restart') {
-        state.step = 0; state.residency = null; state.direct = null; state.addonsNone = false;
+        state.step = 0; state.maxStep = 0; state.residency = null; state.direct = null; state.addonsNone = false;
         state.clouds = new Set(); state.products = new Set(); state.addons = new Set();
       }
       render();
